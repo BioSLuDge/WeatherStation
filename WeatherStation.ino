@@ -1,22 +1,19 @@
 #include <Math.h>
-#include <ESP8266WiFi.h>
 #include <Adafruit_SI1145.h>
 #include <Adafruit_MPL3115A2.h>
-#include <Adafruit_MQTT.h>
-#include <Adafruit_MQTT_Client.h>
 #include <Adafruit_ADS1015.h>
 #include <WeatherStation.h>
 #include <Adafruit_AM2315.h>
 #include <Arduino.h>
 
+#include "config.h"
 #include "weatherStation_config.h"
-#include "floatToString.h"
 
 //Hardware pin definitions
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // digital I/O pins
-const byte WSPEED = 13;
-const byte RAIN = 12;
+const byte WSPEED = 12;
+const byte RAIN = 13;
 
 const byte CHARGE = 16;
 const byte DONE = 14;
@@ -40,126 +37,55 @@ boolean tempFound = false;
 boolean baroFound = false;
 boolean uvFound = false;
 
+unsigned long lastUpdate = 0;
+
 int16_t get_wind_direction();
 
 WeatherStation ws(get_wind_direction);
 
-// Create an ESP8266 WiFiClient class to connect to the MQTT server.
-WiFiClient client;
-// or... use WiFiFlientSecure for SSL
-//WiFiClientSecure client;
-
-// Store the MQTT server, username, and password in flash memory.
-// This is required for using the Adafruit MQTT library.
-const char MQTT_SERVER[] PROGMEM    = AIO_SERVER;
-const char MQTT_USERNAME[] PROGMEM  = AIO_USERNAME;
-const char MQTT_PASSWORD[] PROGMEM  = AIO_KEY;
-
-// Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
-Adafruit_MQTT_Client mqtt(&client, MQTT_SERVER, AIO_SERVERPORT, MQTT_USERNAME, MQTT_PASSWORD);
-
 /****************************** Feeds ***************************************/
 
 // Setup a feed called 'data' for publishing.
-const char DATA_WINDSPEEDMPH_FEED[] PROGMEM = AIO_WINDSPEEDMPH_FEED;
-Adafruit_MQTT_Publish data_windspeedmph = Adafruit_MQTT_Publish(&mqtt, DATA_WINDSPEEDMPH_FEED);
-
-const char DATA_WINDGUSTMPH_FEED[] PROGMEM = AIO_WINDGUSTMPH_FEED;
-Adafruit_MQTT_Publish data_windgustmph = Adafruit_MQTT_Publish(&mqtt, DATA_WINDGUSTMPH_FEED);
-
-const char DATA_WINDSPDMPH_AVG2M_FEED[] PROGMEM = AIO_WINDSPDMPH_AVG2M_FEED;
-Adafruit_MQTT_Publish data_windspdmph_avg2m = Adafruit_MQTT_Publish(&mqtt, DATA_WINDSPDMPH_AVG2M_FEED);
-
-const char DATA_WINDGUSTMPH_10M_FEED[] PROGMEM = AIO_WINDGUSTMPH_10M_FEED;
-Adafruit_MQTT_Publish data_windgustmph_10m = Adafruit_MQTT_Publish(&mqtt, DATA_WINDGUSTMPH_10M_FEED);
-
-const char DATA_RAININ_FEED[] PROGMEM = AIO_RAININ_FEED;
-Adafruit_MQTT_Publish data_rainin = Adafruit_MQTT_Publish(&mqtt, DATA_RAININ_FEED);
-
-const char DATA_DAILYRAININ_FEED[] PROGMEM = AIO_DAILYRAININ_FEED;
-Adafruit_MQTT_Publish data_dailyrainin = Adafruit_MQTT_Publish(&mqtt, DATA_DAILYRAININ_FEED);
-
-const char DATA_WINDDIR_FEED[] PROGMEM = AIO_WINDDIR_FEED;
-Adafruit_MQTT_Publish data_winddir = Adafruit_MQTT_Publish(&mqtt, DATA_WINDDIR_FEED);
-
-const char DATA_WINDGUSTDIR_FEED[] PROGMEM = AIO_WINDGUSTDIR_FEED;
-Adafruit_MQTT_Publish data_windgustdir = Adafruit_MQTT_Publish(&mqtt, DATA_WINDGUSTDIR_FEED);
-
-const char DATA_WINDDIR_AVG2M_FEED[] PROGMEM = AIO_WINDDIR_AVG2M_FEED;
-Adafruit_MQTT_Publish data_winddir_avg2m = Adafruit_MQTT_Publish(&mqtt, DATA_WINDDIR_AVG2M_FEED);
-
-const char DATA_WINDGUSTDIR_10M_FEED[] PROGMEM = AIO_WINDGUSTDIR_10M_FEED;
-Adafruit_MQTT_Publish data_windgustdir_10m = Adafruit_MQTT_Publish(&mqtt, DATA_WINDGUSTDIR_10M_FEED);
-
-const char DATA_BATTERY_FEED[] PROGMEM = AIO_BATTERY_FEED;
-Adafruit_MQTT_Publish data_battery = Adafruit_MQTT_Publish(&mqtt, DATA_BATTERY_FEED);
-
-const char DATA_DONE_FEED[] PROGMEM = AIO_DONE_FEED;
-Adafruit_MQTT_Publish data_done = Adafruit_MQTT_Publish(&mqtt, DATA_DONE_FEED);
-
-const char DATA_CHARGE_FEED[] PROGMEM = AIO_CHARGE_FEED;
-Adafruit_MQTT_Publish data_charge = Adafruit_MQTT_Publish(&mqtt, DATA_CHARGE_FEED);
-
-const char DATA_SOLAR_FEED[] PROGMEM = AIO_SOLAR_FEED;
-Adafruit_MQTT_Publish data_solar = Adafruit_MQTT_Publish(&mqtt, DATA_SOLAR_FEED);
-
-const char DATA_VISIBILITY_FEED[] PROGMEM = AIO_VISIBILITY_FEED;
-Adafruit_MQTT_Publish data_visibility = Adafruit_MQTT_Publish(&mqtt, DATA_VISIBILITY_FEED);
-
-const char DATA_IR_FEED[] PROGMEM = AIO_IR_FEED;
-Adafruit_MQTT_Publish data_ir = Adafruit_MQTT_Publish(&mqtt, DATA_IR_FEED);
-
-const char DATA_UV_FEED[] PROGMEM = AIO_UV_FEED;
-Adafruit_MQTT_Publish data_uv = Adafruit_MQTT_Publish(&mqtt, DATA_UV_FEED);
-
-const char DATA_DEWPT_FEED[] PROGMEM = AIO_DEWPT_FEED;
-Adafruit_MQTT_Publish data_dewpt = Adafruit_MQTT_Publish(&mqtt, DATA_DEWPT_FEED);
-
-const char DATA_HUMIDITY_FEED[] PROGMEM = AIO_HUMIDITY_FEED;
-Adafruit_MQTT_Publish data_humidity = Adafruit_MQTT_Publish(&mqtt, DATA_HUMIDITY_FEED);
-
-const char DATA_BAROMIN_FEED[] PROGMEM = AIO_BAROMIN_FEED;
-Adafruit_MQTT_Publish data_baromin = Adafruit_MQTT_Publish(&mqtt, DATA_BAROMIN_FEED);
-
-const char DATA_TEMP_FEED[] PROGMEM = AIO_TEMP_FEED;
-Adafruit_MQTT_Publish data_temp = Adafruit_MQTT_Publish(&mqtt, DATA_TEMP_FEED);
-
-const char DATA_TEMP2_FEED[] PROGMEM = AIO_TEMP2_FEED;
-Adafruit_MQTT_Publish data_temp2 = Adafruit_MQTT_Publish(&mqtt, DATA_TEMP2_FEED);
-
-const char DATA_PRESSURE_FEED[] PROGMEM = AIO_PRESSURE_FEED;
-Adafruit_MQTT_Publish data_pressure = Adafruit_MQTT_Publish(&mqtt, DATA_PRESSURE_FEED);
-
-const char DATA_ALTITUDE_FEED[] PROGMEM = AIO_ALTITUDE_FEED;
-Adafruit_MQTT_Publish data_altitude = Adafruit_MQTT_Publish(&mqtt, DATA_ALTITUDE_FEED);
+AdafruitIO_Feed *data_windspeedmph = io.feed(IO_WINDSPEEDMPH_FEED);
+AdafruitIO_Feed *data_windgustmph = io.feed(IO_WINDGUSTMPH_FEED);
+AdafruitIO_Feed *data_windspdmph_avg2m = io.feed(IO_WINDSPDMPH_AVG2M_FEED);
+AdafruitIO_Feed *data_windgustmph_10m = io.feed(IO_WINDGUSTMPH_10M_FEED);
+AdafruitIO_Feed *data_rainin = io.feed(IO_RAININ_FEED);
+AdafruitIO_Feed *data_dailyrainin = io.feed(IO_DAILYRAININ_FEED);
+AdafruitIO_Feed *data_winddir = io.feed(IO_WINDDIR_FEED);
+AdafruitIO_Feed *data_windgustdir = io.feed(IO_WINDGUSTDIR_FEED);
+AdafruitIO_Feed *data_winddir_avg2m = io.feed(IO_WINDDIR_AVG2M_FEED);
+AdafruitIO_Feed *data_windgustdir_10m = io.feed(IO_WINDGUSTDIR_10M_FEED);
+AdafruitIO_Feed *data_battery = io.feed(IO_BATTERY_FEED);
+AdafruitIO_Feed *data_done = io.feed(IO_DONE_FEED);
+AdafruitIO_Feed *data_charge = io.feed(IO_CHARGED_FEED);
+AdafruitIO_Feed *data_solar = io.feed(IO_SOLAR_FEED);
+AdafruitIO_Feed *data_visibility = io.feed(IO_VISIBILITY_FEED);
+AdafruitIO_Feed *data_ir = io.feed(IO_IR_FEED);
+AdafruitIO_Feed *data_uv = io.feed(IO_UV_FEED);
+AdafruitIO_Feed *data_dewpt = io.feed(IO_DEWPT_FEED);
+AdafruitIO_Feed *data_humidity = io.feed(IO_HUMIDITY_FEED);
+AdafruitIO_Feed *data_baromin = io.feed(IO_BAROMIN_FEED);
+AdafruitIO_Feed *data_temp = io.feed(IO_TEMP_FEED);
+AdafruitIO_Feed *data_temp2 = io.feed(IO_TEMP2_FEED);
+AdafruitIO_Feed *data_pressure = io.feed(IO_PRESSURE_FEED);
+AdafruitIO_Feed *data_altitude = io.feed(IO_ALTITUDE_FEED);
 
 // Setup a feed called 'reset' for subscribing to changes.
-const char RESET_FEED[] PROGMEM = AIO_RESET_FEED;
-Adafruit_MQTT_Subscribe reset = Adafruit_MQTT_Subscribe(&mqtt, RESET_FEED);
-
-// Setup a feed called 'reset' for subscribing to changes.
-const char READ_FEED[] PROGMEM = AIO_READ_FEED;
-Adafruit_MQTT_Subscribe read = Adafruit_MQTT_Subscribe(&mqtt, READ_FEED);
+AdafruitIO_Feed *reset = io.feed(IO_RESET_FEED);
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
-//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-void powerSaver() {
-
-}
-
-void rainIRQ() {
+void ICACHE_RAM_ATTR rainIRQ() {
   ws.rainIRQ();
 }
 
-void wspeedIRQ() {
+void ICACHE_RAM_ATTR wspeedIRQ() {
   ws.wspeedIRQ();
 }
 
 void setup() {
-  powerSaver();
-
   Serial.begin(115200);
   Serial.println("");
   Serial.println("Hello");
@@ -183,6 +109,7 @@ void setup() {
   Serial.println("ADC Setup");
   ads1015.begin();
 
+  Serial.println("Setting up interrupts");
   // attach external interrupt pins to IRQ functions
   attachInterrupt(digitalPinToInterrupt(RAIN), rainIRQ, FALLING);
   attachInterrupt(digitalPinToInterrupt(WSPEED), wspeedIRQ, FALLING);
@@ -190,14 +117,22 @@ void setup() {
   // turn on interrupts
   interrupts();
 
-  Serial.println("Connecting to WIFI");
-  WiFi.begin(WLAN_SSID, WLAN_PASS);
+  // connect to io.adafruit.com
+  Serial.print("Connecting to Adafruit IO");
+  io.connect();
+ 
+  // wait for a connection
+  while(io.status() < AIO_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+ 
+  // we are connected
+  Serial.println();
+  Serial.println(io.statusText());
 
-  // Setup MQTT subscriptions.
-  Serial.println("Subscribing to reset");
-  mqtt.subscribe(&reset);
-  Serial.println("Subscribing to read");
-  mqtt.subscribe(&read);
+  //setup reset trigger
+  reset->onMessage(resetFunc);
 
   // Setup charger pins
   Serial.println("Setting up DONE and CHARGE pins");
@@ -205,40 +140,22 @@ void setup() {
   pinMode(CHARGE, INPUT);
 }
 
-void resetFunc() {
-  ESP.reset();
+void resetFunc(AdafruitIO_Data *data) {
+  if(data->isTrue()) {
+    ESP.reset();
+  }
 }
 
 void loop() {
+  Serial.println("Weather Station Update.");
   ws.update();
 
-  if (WiFi.status() == WL_CONNECTED) {
-    if (mqtt.connected()) {
+  Serial.println("Adafruit IO Run.");
+  io.run();
 
-      Adafruit_MQTT_Subscribe *subscription;
-      while ((subscription = mqtt.readSubscription(5000))) {
-        if (subscription == &reset) {
-          Serial.print(F("Got: "));
-          Serial.println((char *)reset.lastread);
-          resetFunc();
-        }
-        else if (subscription == &read) {
-          Serial.print(F("Got: "));
-          Serial.println((char *)read.lastread);
-          reportData();
-        }
-      }
-    }
-    else {
-      int8_t ret;
-
-      if ((ret = mqtt.connect()) != 0) {
-        Serial.println(mqtt.connectErrorString(ret));
-        Serial.println("Retrying MQTT connection in 5 seconds...");
-        mqtt.disconnect();
-        delay(4000);
-      }
-    }
+  if(millis() > (lastUpdate + IO_LOOP_DELAY)) {
+    reportData();
+    lastUpdate = millis();
   }
 
   delay(1000);
@@ -247,10 +164,6 @@ void loop() {
 void reportData() {
   Serial.println("Reporting data");
   
-  char buffer[25]; 
-
-  String weatherString = "";
-
   if (baroFound) {
     Serial.println("Reading Baro");
     Serial.println("Reading Temp");
@@ -263,81 +176,52 @@ void reportData() {
     float temp2f = tempToF(tempc2);
     float baromin = pressureToIM(pressure, altitude);
 
-    data_altitude.publish((uint8_t *)floatToString(buffer, altitude, FLOAT_PERSISION), strlen(buffer));
-    data_temp2.publish((uint8_t *)floatToString(buffer, temp2f, FLOAT_PERSISION), strlen(buffer));
-    data_baromin.publish((uint8_t *)floatToString(buffer, baromin, FLOAT_PERSISION), strlen(buffer));
-    data_pressure.publish((uint8_t *)floatToString(buffer, pressure, FLOAT_PERSISION), strlen(buffer));
+    data_altitude->save(altitude);
+    data_temp2->save(temp2f);
+    data_baromin->save(baromin);
+    data_pressure->save(pressure);
   }
 
   if (tempFound) {
     Serial.println("Reading TEMP");
     float tempc, humidity;
-    temp.readTemperatureAndHumidity(tempc, humidity);
+    temp.readTemperatureAndHumidity(&tempc, &humidity);
     float tempf = tempToF(tempc);
     float dewptf = calcDewPoint(humidity, tempf);
     
-    data_dewpt.publish((uint8_t *)floatToString(buffer, dewptf, FLOAT_PERSISION), strlen(buffer));
-    data_temp.publish((uint8_t *)floatToString(buffer, tempf, FLOAT_PERSISION), strlen(buffer));
-    data_humidity.publish((uint8_t *)floatToString(buffer, humidity, FLOAT_PERSISION), strlen(buffer));
+    data_dewpt->save(dewptf);
+    data_temp->save(tempf);
+    data_humidity->save(humidity);
   }
 
   if (uvFound) {
     Serial.println("Reading UV");
-    String UV = String(uv.readUV());
-    String IR = String(uv.readIR());
-    String visibility = String(uv.readVisible());
 
-    UV.toCharArray(buffer, sizeof(buffer));
-    data_uv.publish((uint8_t *)buffer, strlen(buffer));
-    IR.toCharArray(buffer, sizeof(buffer));
-    data_ir.publish((uint8_t *)buffer, strlen(buffer));
-    visibility.toCharArray(buffer, sizeof(buffer));
-    data_visibility.publish((uint8_t *)buffer, strlen(buffer));
+    data_uv->save(uv.readUV());
+    data_ir->save(uv.readIR());
+    data_visibility->save(uv.readVisible());
   }
 
-  String winddir = String(ws.getWindDir());
-  float windspeedmph = ws.getWindSpeedMPH();
-  float windgustmph = ws.getWindGustMPH();
-  String windgustdir = String(ws.getWindGustDir());
-  float windspdmph_avg2m = ws.getWindSpeedMPH_Avg2m();
-  String winddir_avg2m = String(ws.getWindDir_Avg2m());
-  float windgustmph_10m = ws.getWindGustMPH_10m();
-  String windgustdir_10m = String(ws.getWindGustDir_10m());
-  float rainin = ws.getRainIn();
-  float dailyrainin = ws.getDailyRainIn();
-
-  data_dailyrainin.publish((uint8_t *)floatToString(buffer, dailyrainin, FLOAT_PERSISION), strlen(buffer));
-  data_rainin.publish((uint8_t *)floatToString(buffer, rainin, FLOAT_PERSISION), strlen(buffer));  
-  data_windgustmph_10m.publish((uint8_t *)floatToString(buffer, windgustmph_10m, FLOAT_PERSISION), strlen(buffer));
-  data_windspdmph_avg2m.publish((uint8_t *)floatToString(buffer, windspdmph_avg2m, FLOAT_PERSISION), strlen(buffer));  
-  data_windgustmph.publish((uint8_t *)floatToString(buffer, windgustmph, FLOAT_PERSISION), strlen(buffer));
-  data_windspeedmph.publish((uint8_t *)floatToString(buffer, windspeedmph, FLOAT_PERSISION), strlen(buffer)); 
-
-  windgustdir_10m.toCharArray(buffer, sizeof(buffer));
-  data_windgustdir_10m.publish((uint8_t *)buffer, strlen(buffer));
-  winddir_avg2m.toCharArray(buffer, sizeof(buffer));
-  data_winddir_avg2m.publish((uint8_t *)buffer, strlen(buffer));
-  windgustdir.toCharArray(buffer, sizeof(buffer));
-  data_windgustdir.publish((uint8_t *)buffer, strlen(buffer));
-  winddir.toCharArray(buffer, sizeof(buffer));
-  data_winddir.publish((uint8_t *)buffer, strlen(buffer));
-
-  String done = String(!digitalRead(DONE));
-  String charge = String(!digitalRead(CHARGE));
-
-  data_solar.publish((uint8_t *)floatToString(buffer, getSolarLevel(), FLOAT_PERSISION), strlen(buffer));
-  data_battery.publish((uint8_t *)floatToString(buffer, getBatteryLevel(), FLOAT_PERSISION), strlen(buffer));
-  done.toCharArray(buffer, sizeof(buffer));
-  data_done.publish((uint8_t *)buffer, strlen(buffer));
-  charge.toCharArray(buffer, sizeof(buffer));
-  data_charge.publish((uint8_t *)buffer, strlen(buffer));
+  data_dailyrainin->save(ws.getDailyRainIn());
+  data_rainin->save(ws.getRainIn());  
+  data_windgustmph_10m->save(ws.getWindGustMPH_10m());
+  data_windspdmph_avg2m->save(ws.getWindSpeedMPH_Avg2m());  
+  data_windgustmph->save(ws.getWindGustMPH());
+  data_windspeedmph->save(ws.getWindSpeedMPH()); 
+  data_windgustdir_10m->save(ws.getWindGustDir_10m());
+  data_winddir_avg2m->save(ws.getWindDir_Avg2m());
+  data_windgustdir->save(ws.getWindGustMPH());
+  data_winddir->save(ws.getWindDir());
+  data_solar->save(getSolarLevel());
+  data_battery->save(getBatteryLevel());
+  data_done->save(digitalRead(DONE));
+  data_charge->save(digitalRead(CHARGE));
 
   /*
     winddir - [0-360 instantaneous wind direction]
     windspeedmph - [mph instantaneous wind speed]
     windgustmph - [mph current wind gust, using software specific time period]
     windgustdir - [0-360 using software specific time period]
-
     windspdmph_avg2m  - [mph 2 minute average wind speed mph]
     winddir_avg2m - [0-360 2 minute average wind direction]
     windgustmph_10m - [mph past 10 minutes wind gust mph ]
